@@ -75,7 +75,7 @@ class SentenceTransformerEmbedder:
         )
         return [v.tolist() for v in vectors]
 
-    def embed_query(self, text: str) -> list[float]:
+    def embed_query(self, text: str) -> list[float]:            
         vector = self.model.encode(
             EMBED_QUERY_PREFIX + text,
             normalize_embeddings=True,
@@ -87,7 +87,7 @@ class SentenceTransformerEmbedder:
 _EMBEDDER: Embedder | None = None
 
 
-def get_embedder() -> Embedder:
+def get_embedder() -> Embedder:      
     """Load the embedder once per process — the model is 2.2GB."""
     global _EMBEDDER
     if _EMBEDDER is None:
