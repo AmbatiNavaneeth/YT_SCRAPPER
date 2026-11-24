@@ -1,106 +1,333 @@
-YT Lecture RAG
-Retrieval over a YouTube DSA playlist. A student asks a question in Hinglish or English and gets an answer plus clickable links that jump to the exact second in the exact lecture.
+# 🎓 YT Lecture RAG
+### Retrieval-Augmented Generation over YouTube DSA Lectures
 
-"bhai memoization aur tabulation ka difference kahan explain kiya hai?"
+[![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Qdrant](https://img.shields.io/badge/Vector_DB-Qdrant-red?logo=qdrant)](https://qdrant.tech/)
+[![Groq](https://img.shields.io/badge/LLM-Groq-orange)](https://groq.com/)
+[![Whisper](https://img.shields.io/badge/Transcription-Faster--Whisper-green)](https://github.com/SYSTRAN/faster-whisper)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-→ Answer: 3-4 lines, grounded only in what was actually said
-→ Sources:
-   [1] DP Lecture 3 — Memoization Deep Dive        @ 12:04   ▸ jump
-   [2] DP Lecture 5 — Tabulation Recipe            @ 04:31   ▸ jump
-Every generic RAG demo returns a blob of text. This returns a place in a video.
+**Ask questions about DSA lectures in English or Hinglish and get accurate answers with clickable YouTube timestamps.**
 
-Stack
-Layer	Choice
-Playlist + audio	yt-dlp (Python API)
-Transcription	faster-whisper (CTranslate2), large-v3, batched
-Chunking	hand-written, time-window based
-Embeddings	sentence-transformers + BAAI/bge-m3 (1024-dim)
-Vector store	Qdrant Cloud — same as day14 / day15
-LLM	Groq openai/gpt-oss-120b — same as day15 / hiremeai
-CLI	typer + rich
-API + UI	FastAPI + a single HTML page with the YouTube IFrame API
-Where this differs from RAGPLAN.md
-The plan was written for an Apple Silicon machine with a Gemini key. Three swaps, all deliberate:
+Instead of returning generic AI-generated explanations, YT Lecture RAG retrieves the exact lecture segments where a concept was explained.
 
-faster-whisper, not mlx-whisper. mlx is Apple-Silicon-only. On this box the CUDA path is the faster one anyway — and batched, it is 3x faster than the sequential config the plan assumed, at no cost in quality.
-No ffmpeg, no WAV files. faster-whisper decodes audio itself through PyAV, so yt-dlp downloads the raw m4a and Whisper reads it directly. That removes an install, and it removes the 16kHz WAVs that run ~115 MB per hour of video.
-Qdrant + Groq, not Chroma + Gemini. Matches the rest of week 3, and the keys are already in the repo-root .env. Qdrant Cloud also makes Phase 4 deploy trivial — the index is already remote, so there is no disk volume to persist.
-Setup
-cd week3/ytscraper
+### 💡 Example
+
+**Student asks:**
+
+> "Where the difference between memoization and tabulation was explained??"
+
+**AI Answer:**
+
+A concise 3–4 line answer grounded only in the retrieved lecture content.
+
+**📚 Sources:**
+
+| Lecture | Timestamp |
+|---|---|
+| DP Lecture 3 – Memoization Deep Dive | [▶ 12:04](#) |
+| DP Lecture 5 – Tabulation Recipe | [▶ 04:31](#) |
+
+*In the application, clicking a citation seeks directly to that timestamp in the embedded YouTube player.*
+
+---
+
+## 📌 Table of Contents
+
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [Architecture](#-architecture)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Usage](#-usage)
+- [Performance](#-performance)
+- [Reliability](#-reliability)
+- [Future Improvements](#-future-improvements)
+
+---
+
+## 🚀 Overview
+
+YT Lecture RAG is a Retrieval-Augmented Generation application designed to make long YouTube DSA playlists searchable and interactive.
+
+It processes lecture videos, extracts audio, generates timestamped transcripts, divides them into meaningful chunks, creates embeddings, and stores them in Qdrant.
+
+When a student asks a question, the system retrieves relevant lecture segments and uses an LLM to generate an answer with source citations.
+
+**The main goal:** Help students find exactly where a topic was taught without watching entire lectures again.
+
+## ✨ Key Features
+
+- 🎥 **YouTube Playlist Ingestion** – Extracts audio from entire YouTube playlists.
+- 🎙️ **Speech-to-Text** – Uses Faster-Whisper (large-v3) for transcription.
+- ✂️ **Time-Based Chunking** – Preserves timestamps for accurate source retrieval.
+- 🧠 **Semantic Search** – Uses BGE-M3 embeddings for multilingual retrieval.
+- 🗄️ **Vector Database** – Stores and retrieves lecture chunks using Qdrant Cloud.
+- 🤖 **AI-Powered Answers** – Uses Groq's GPT-OSS-120B model.
+- 🌐 **Hinglish Support** – Accepts English and romanised Hinglish questions.
+- 🔗 **Timestamp Citations** – Jump directly to the relevant moment in a lecture.
+- 💻 **Web Interface** – FastAPI backend with an embedded YouTube player.
+- ♻️ **Incremental Processing** – Reuses cached transcripts to avoid unnecessary transcription.
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart TD
+    A[YouTube Playlist] --> B[yt-dlp]
+    B --> C[Audio Extraction]
+    C --> D[Faster-Whisper]
+    D --> E[Timestamped Transcripts]
+    E --> F[Time-Based Chunking]
+    F --> G[BGE-M3 Embeddings]
+    G --> H[(Qdrant Cloud)]
+
+    I[Student Question] --> J[Query Embedding]
+    J --> H
+    H --> K[Relevant Lecture Chunks]
+    K --> L[Groq GPT-OSS-120B]
+    L --> M[Answer + Citations]
+    M --> N[FastAPI Web UI]
+    N --> O[YouTube Timestamp Playback]
+```
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Language | Python 3.11 |
+| YouTube Extraction | yt-dlp |
+| Transcription | Faster-Whisper (large-v3) |
+| Audio Processing | PyAV |
+| Chunking | Custom Time-Based Chunking |
+| Embeddings | Sentence Transformers – BAAI/bge-m3 |
+| Vector Database | Qdrant Cloud |
+| LLM | Groq – GPT-OSS-120B |
+| CLI | Typer + Rich |
+| Backend | FastAPI |
+| Frontend | HTML + YouTube IFrame API |
+| Environment | uv |
+
+## 📂 Project Structure
+
+```text
+YT_SCRAPPER/
+│
+├── ytrag/
+│   └── ytrag/
+│       ├── __init__.py
+│       ├── answer.py
+│       ├── chunk.py
+│       ├── cli.py
+│       ├── config.py
+│       ├── embed.py
+│       ├── evaluate.py
+│       ├── index.py
+│       ├── models.py
+│       ├── playlist.py
+│       ├── transcribe.py
+│       └── util.py
+│
+├── eval/
+├── index/
+├── transcripts/
+├── main.py
+├── pyproject.toml
+├── uv.lock
+├── RAGPLAN.md
+├── SETUP.md
+└── README.md
+```
+
+## ⚙️ Installation
+
+### Prerequisites
+
+- Python 3.11
+- Git
+- uv package manager
+- Groq API key
+- Qdrant Cloud account
+- NVIDIA GPU (recommended for faster transcription)
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/AmbatiNavaneeth/YT_SCRAPPER.git
+cd YT_SCRAPPER
+```
+
+### 2. Create virtual environment
+
+```bash
 uv venv --python 3.11
+```
+
+### 3. Install dependencies
+
+```bash
 uv sync
-The CUDA runtime libs that ctranslate2 needs on Windows are an optional extra:
+```
 
+### 4. Optional: Enable CUDA acceleration
+
+```bash
 uv sync --extra cuda
-If your GPU is newer than the shipped ctranslate2 build, transcribe.py catches the failure and falls back to CPU int8 with a printed warning. Slower, still correct.
+```
 
-Embeddings run on CPU by default. uv pulls the CPU build of torch from PyPI, so bge-m3 embeds on the CPU — fine for querying, and a few minutes rather than seconds when reindexing a full playlist. To put it on the GPU (~3GB download):
+## 🔐 Configuration
 
-uv pip install torch --index-url https://download.pytorch.org/whl/cu124 --force-reinstall
-Transcription is unaffected either way: ctranslate2 ships its own CUDA support and already uses the GPU.
+Create a `.env` file in the repository root:
 
-Keys come from the repo-root .env (already present):
+```env
+GROQ_API_KEY=your_groq_api_key
+QDRANT_URL=your_qdrant_url
+QDRANT_API_KEY=your_qdrant_api_key
+```
 
-GROQ_API_KEY=...
-QDRANT_URL=...
-QDRANT_API_KEY=...
-Runtime data
-Lives outside the repo, in ~/.ytrag/:
+Never commit your actual `.env` file or API keys to GitHub.
 
-~/.ytrag/
-├── audio/        # <video_id>.m4a — DELETABLE, regenerable in seconds
-├── transcripts/  # <video_id>.json — PRECIOUS, hours of GPU time
-└── langtest/     # output of `ytrag langtest`
-That split is the whole point. Transcripts are the expensive artifact; everything downstream of them is cheap to rebuild, which is why changing your mind about the embedding model or the chunk size later costs minutes instead of hours.
+## ▶️ Usage
 
-Usage
-0a. Preflight
+### 1. Preflight Checks
+
+Verify dependencies, API connections, Qdrant, Whisper and playlist access before starting ingestion.
+
+```bash
 uv run ytrag preflight --playlist "<PLAYLIST_URL>"
-Checks keys, Qdrant, the embedder, the Whisper model, the transcription code path, playlist listing and the LLM — about a minute. Each check calls the thing rather than asserting it looks importable, because this exists after an 8-hour run died ten seconds in on a missing import. Run it before any long ingest.
+```
 
-0b. Decide the language flag first
-uv run ytrag langtest "https://www.youtube.com/watch?v=<one_lecture>"
-The lectures are Hinglish. language="hi" gives Devanagari output; language="en" gives romanised/translated output. Student queries will be romanised Hinglish or English, so these two produce very different retrieval behaviour.
+### 2. Test Transcription Language
 
-Read a few minutes of each and check what happens to the technical terms specifically — memoization, adjacency list, time complexity, subproblem, DP table. Whichever keeps those clean, wins. Then set YTRAG_WHISPER_LANG and move on. This decision gets baked into hours of compute afterwards, so make it on evidence.
+```bash
+uv run ytrag langtest "https://www.youtube.com/watch?v=<VIDEO_ID>"
+```
 
-1. Ingest
-uv run ytrag ingest --playlist "<PLAYLIST_URL>" --limit 1     # Phase 0: one video, end to end
-uv run ytrag ingest --playlist "<PLAYLIST_URL>"               # Phase 1: the whole thing
-Per video: download audio → transcribe (cached) → delete audio → chunk → upsert. One failing video logs and the run continues. Re-running re-transcribes nothing and duplicates nothing.
+Compare Hindi and English transcription output and choose the language setting that preserves technical terminology.
 
-Speed, measured on an RTX 5050 laptop
-Transcription is the only expensive step, and it is paid exactly once — chunking, embedding and indexing take seconds, and everything downstream rebuilds from cached transcripts.
+### 3. Ingest YouTube Playlist
 
-config	speed	68.7-hour playlist
-large-v3 sequential, beam 5 (as RAGPLAN specified)	2.5x realtime	~27 h
-large-v3 batch 8, beam 5 — the default here	8.1x	~8.5 h
-large-v3 batch 8, beam 1	10.5x	~6.5 h
-Batching is not a quality tradeoff: same model, same weights, identical technical-term capture in testing. The sequential path simply leaves the GPU idle between speech regions. Beam 1 is a real further gain but uses greedy decoding, which is likeliest to slip on exactly the thing that matters here — an unusual technical term in accented speech — so the default stays at beam 5.
+Start with one video:
 
-Surviving a long unattended run
-Everything is built to be re-run. The command never changes:
+```bash
+uv run ytrag ingest --playlist "<PLAYLIST_URL>" --limit 1
+```
 
+Process the entire playlist:
+
+```bash
 uv run ytrag ingest --playlist "<PLAYLIST_URL>"
-Power cut. Transcripts are written to a temp file and atomically renamed, so you get a complete file or none — never a truncated one the cache then trusts forever. Re-run and every finished video is skipped; you lose only the one in flight.
-Network drop. Downloads and Qdrant upserts retry four times with exponential backoff, so a brief blip costs seconds. Both operations are idempotent, so a retry after a partial success is harmless.
-Network death. After --stop-after-failures videos fail back to back (default 5) the run aborts with a clear message instead of ripping through the rest of the playlist failing instantly and reporting a "finished" run that did nothing.
-Ctrl-C. Caught explicitly; cached work is safe.
-Whisper and the embedding model are cached on disk after first use, so transcription itself needs no network at all.
-Don't let the machine sleep mid-run — power loss is survivable, suspending the GPU mid-inference is messier.
+```
 
-2. Ask
+**Processing pipeline:**
+
+1. Download audio using yt-dlp.
+2. Transcribe using Faster-Whisper.
+3. Cache transcripts.
+4. Delete temporary audio.
+5. Generate timestamp-based chunks.
+6. Create BGE-M3 embeddings.
+7. Store vectors in Qdrant Cloud.
+
+### 4. Ask Questions
+
+```bash
 uv run ytrag ask "memoization aur tabulation ka difference kya hai?"
-uv run ytrag search "adjacency list"      # retrieval only, shows raw distances
-3. Evaluate
-uv run ytrag eval --verbose
-4. Web UI
-uv run ytrag serve
-Then http://127.0.0.1:8000. Citations call player.seekTo() on the embedded player, so clicking [2] jumps inside the page rather than opening a tab.
+```
 
-Other commands
-uv run ytrag preflight            # check every dependency before a long run
-uv run ytrag reindex              # re-chunk + re-embed from cached transcripts
-uv run ytrag reindex --replace    # same, but clear old chunks first (needed if chunk size changed)
-uv run ytrag stats
-uv run ytrag clean-audio
+### 5. Search Lecture Content
+
+```bash
+uv run ytrag search "adjacency list"
+```
+
+Retrieves relevant lecture chunks and displays their similarity distances.
+
+### 6. Evaluate Retrieval
+
+```bash
+uv run ytrag eval --verbose
+```
+
+### 7. Launch Web Application
+
+```bash
+uv run ytrag serve
+```
+
+Open:
+
+**http://127.0.0.1:8000**
+
+Ask questions through the web interface and click citations to jump to the exact timestamp inside the embedded YouTube player.
+
+## ⚡ Performance Benchmarks
+
+Measured on an RTX 5050 laptop using a 68.7-hour playlist.
+
+| Configuration | Speed | Estimated Time |
+|---|---:|---:|
+| Sequential, Beam 5 | 2.5x | ~27 hours |
+| Batch 8, Beam 5 | 8.1x | ~8.5 hours |
+| Batch 8, Beam 1 | 10.5x | ~6.5 hours |
+
+**Default configuration:** Batch 8 with Beam 5, balancing transcription speed and technical-term accuracy.
+
+## 🔄 Reliability & Caching
+
+The ingestion pipeline is designed to handle long-running processing jobs.
+
+- **Power interruption:** Completed transcripts are preserved using atomic file writes.
+- **Network failures:** Downloads and Qdrant upserts use retries with exponential backoff.
+- **Duplicate prevention:** Re-running ingestion skips already processed videos.
+- **Graceful interruption:** Ctrl+C preserves completed work.
+- **Failure handling:** Consecutive failures trigger an automatic stop.
+- **Model caching:** Whisper and embedding models are cached locally.
+
+### Runtime Data
+
+```text
+~/.ytrag/
+│
+├── audio/
+├── transcripts/
+└── langtest/
+```
+
+Transcripts are preserved because they are expensive to regenerate. Audio files are temporary and can be recreated when needed.
+
+## 🧰 Additional Commands
+
+| Command | Purpose |
+|---|---|
+| `uv run ytrag preflight` | Validate dependencies |
+| `uv run ytrag reindex` | Re-chunk and re-embed cached transcripts |
+| `uv run ytrag reindex --replace` | Replace existing indexed chunks |
+| `uv run ytrag stats` | Display indexing statistics |
+| `uv run ytrag clean-audio` | Remove cached audio |
+
+## 🔮 Future Improvements
+
+- Hybrid search combining dense and sparse retrieval.
+- Cross-encoder reranking for better retrieval accuracy.
+- Conversation memory for follow-up questions.
+- Improved Hinglish query understanding.
+- Deployment with a publicly accessible web interface.
+- Expanded evaluation using retrieval precision and answer faithfulness.
+
+## 👨‍💻 Author
+
+**Navaneeth Ambati**
+
+B.Tech – Information Technology | 2026 Graduate
+
+- GitHub: [@AmbatiNavaneeth](https://github.com/AmbatiNavaneeth)
+- LinkedIn: [Connect with me](https://www.linkedin.com/in/ambatinavaneeth/)
+
+---
+
+⭐ If you find this project interesting, consider giving the repository a star!
+
+**Built to make learning from long technical lectures faster, searchable, and more accessible.**
