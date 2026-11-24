@@ -14,7 +14,7 @@ import json
 import sys
 from pathlib import Path
 
-import typer
+import typer            
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import (
