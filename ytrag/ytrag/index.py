@@ -123,7 +123,7 @@ def ensure_collection() -> str:
             )
     return name
 
-
+               
 def upsert_chunks(chunks: list[Chunk], batch_size: int = UPSERT_BATCH) -> int:
     """Embed and upsert. Idempotent: same chunk_id -> same point ID -> overwrite."""
     if not chunks:
